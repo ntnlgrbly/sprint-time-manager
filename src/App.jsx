@@ -80,6 +80,26 @@ function groupByDate(tasks) {
   }, {});
 }
 
+function getDateRange(startDate, endDate) {
+  if (!startDate || !endDate) return [];
+
+  const days = [];
+  const current = new Date(startDate);
+  const end = new Date(endDate);
+
+  while (current <= end) {
+    days.push(current.toISOString().slice(0, 10));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return days;
+}
+
+function getWeekday(dateString) {
+  if (!dateString) return "";
+  return new Intl.DateTimeFormat("he-IL", { weekday: "long" }).format(new Date(dateString));
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [sprints, setSprints] = useState([]);
@@ -144,6 +164,18 @@ export default function App() {
     [tasks, activeSprint]
   );
 
+  const sprintDays = useMemo(() => {
+    if (!activeSprint) return [];
+    const tasksByDate = groupByDate(activeSprintTasks);
+
+    return getDateRange(activeSprint.startDate, activeSprint.endDate).map((date) => ({
+      date,
+      tasks: (tasksByDate[date] || []).slice().sort((a, b) => a.createdAt?.localeCompare(b.createdAt || "") || 0),
+    }));
+  }, [activeSprint, activeSprintTasks]);
+
+  const daysWithTasks = sprintDays.filter((day) => day.tasks.length > 0).length;
+
   const filteredTasks = useMemo(() => {
     return activeSprintTasks.filter((task) => {
       const areaMatch = filters.workAreaId === "all" || task.workAreaId === filters.workAreaId;
@@ -169,16 +201,18 @@ export default function App() {
   }, [activeSprintTasks, workAreas, categories]);
 
   const sprintText = useMemo(() => {
-    const byDate = groupByDate(activeSprintTasks);
-    const dayLines = Object.keys(byDate)
-      .sort()
-      .map((date) => {
-        const lines = byDate[date].map((task) => {
+    const dayLines = sprintDays
+      .map((day) => {
+        if (day.tasks.length === 0) {
+          return `${formatDate(day.date)} - אין משימות`;
+        }
+
+        const lines = day.tasks.map((task) => {
           const area = getWorkArea(task.workAreaId)?.name || "ללא תחום";
           const expected = task.expectedEndDate ? `, צפי סיום: ${formatDate(task.expectedEndDate)}` : "";
           return `  - ${task.title} (${area}, ${task.status}${expected})`;
         });
-        return `${formatDate(date)}\n${lines.join("\n")}`;
+        return `${formatDate(day.date)}\n${lines.join("\n")}`;
       })
       .join("\n\n");
 
@@ -188,7 +222,7 @@ export default function App() {
       .join("\n");
 
     return `סיכום ${activeSprint?.name || "ספרינט"}\n${formatDate(activeSprint?.startDate)} - ${formatDate(activeSprint?.endDate)}\n\nסה״כ משימות: ${activeSprintTasks.length}\nבוצעו: ${summary.done}\nדורשות המשך / פתוחות: ${summary.open}\n\nחלוקה לפי תחומי עבודה:\n${areaLines || "אין משימות עדיין"}\n\nפירוט לפי ימים:\n${dayLines || "אין משימות עדיין"}`;
-  }, [activeSprint, activeSprintTasks, summary]);
+  }, [activeSprint, activeSprintTasks, summary, sprintDays]);
 
   function submitTask(event) {
     event.preventDefault();
@@ -413,22 +447,31 @@ export default function App() {
                   )}
                 </div>
 
-                <div className="dashboard-side-card accent-card areas-accent">
-                  <div className="card-title compact-title">
+                <div className="dashboard-side-card accent-card days-accent">
+                  <div className="card-title compact-title days-title-row">
                     <div>
-                      <span className="section-kicker">חלוקה</span>
-                      <h3>תחומי עבודה</h3>
+                      <span className="section-kicker">ספרינט לפי ימים</span>
+                      <h3>משימות לפי ימים בספרינט</h3>
+                      <p>{daysWithTasks} ימים עם משימות מתוך {sprintDays.length} ימי ספרינט.</p>
                     </div>
+                    <button className="ghost small" onClick={() => setActiveTab("summary")}>פירוט מלא</button>
                   </div>
-                  <div className="work-area-dashboard-list">
-                    {summary.byWorkArea.map((area) => (
-                      <div className="work-area-progress" key={area.id}>
-                        <div>
-                          <span className="dot" style={{ backgroundColor: area.color }} />
-                          <strong>{area.name}</strong>
-                        </div>
-                        <span>{area.count}</span>
-                      </div>
+
+                  <div className="sprint-days-strip">
+                    {sprintDays.map((day) => (
+                      <button
+                        className={`day-summary-card ${day.tasks.length > 0 ? "has-tasks" : "is-empty"}`}
+                        key={day.date}
+                        onClick={() => setActiveTab("summary")}
+                      >
+                        <span className="day-date">{formatDate(day.date)}</span>
+                        <strong>{day.tasks.length > 0 ? `${day.tasks.length} משימות` : "אין משימות"}</strong>
+                        <span className="day-task-preview">
+                          {day.tasks.length > 0
+                            ? day.tasks.slice(0, 2).map((task) => task.title).join(" · ")
+                            : "יום פנוי / ללא דיווח"}
+                        </span>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -537,20 +580,86 @@ export default function App() {
         )}
 
         {activeTab === "summary" && (
-          <section className="page-grid">
-            <div className="card wide">
-              <div className="card-title"><h3>סיכום ספרינט מוכן להעתקה</h3><button className="primary small" onClick={copySummary}>העתק</button></div>
-              <textarea className="summary-box" value={sprintText} readOnly />
+          <section className="summary-page">
+            <div className="summary-hero-card">
+              <div>
+                <span className="section-kicker">מוכן להעתקה</span>
+                <h3>סיכום ספרינט מעוצב</h3>
+                <p>תצוגה נקייה לפגישת סטטוס, עם כפתור העתקה ששומר טקסט פשוט ונוח להדבקה.</p>
+              </div>
+              <button className="primary" onClick={copySummary}>העתק סיכום</button>
             </div>
 
-            <div className="card wide">
-              <h3>פירוט לפי ימים</h3>
-              {Object.keys(groupByDate(activeSprintTasks)).length === 0 ? <div className="empty">אין עדיין משימות.</div> : Object.entries(groupByDate(activeSprintTasks)).sort(([a], [b]) => a.localeCompare(b)).map(([date, dayTasks]) => (
-                <div className="day-block" key={date}>
-                  <h4>{formatDate(date)}</h4>
-                  {dayTasks.map((task) => <div className="row" key={task.id}><span>{task.title}{task.expectedEndDate ? ` · צפי סיום: ${formatDate(task.expectedEndDate)}` : ""}</span><strong>{getWorkArea(task.workAreaId)?.name}</strong></div>)}
+            <div className="summary-grid">
+              <article className="summary-preview-card">
+                <div className="summary-preview-header">
+                  <div>
+                    <span>סיכום</span>
+                    <h3>{activeSprint?.name || "ספרינט"}</h3>
+                    <p>{formatDate(activeSprint?.startDate)} - {formatDate(activeSprint?.endDate)}</p>
+                  </div>
+                  <span className="pill success">{summary.done} בוצעו</span>
                 </div>
-              ))}
+
+                <div className="summary-stat-row">
+                  <div><strong>{activeSprintTasks.length}</strong><span>סה״כ משימות</span></div>
+                  <div><strong>{summary.done}</strong><span>בוצעו</span></div>
+                  <div><strong>{summary.open}</strong><span>פתוחות / המשך</span></div>
+                  <div><strong>{daysWithTasks}</strong><span>ימים עם פעילות</span></div>
+                </div>
+
+                <div className="summary-section">
+                  <h4>חלוקה לפי תחומי עבודה</h4>
+                  <div className="summary-chips">
+                    {summary.byWorkArea.filter((area) => area.count > 0).length === 0 ? (
+                      <span>אין משימות עדיין</span>
+                    ) : (
+                      summary.byWorkArea.filter((area) => area.count > 0).map((area) => (
+                        <span key={area.id}><i style={{ backgroundColor: area.color }} />{area.name}: {area.count}</span>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="summary-section">
+                  <h4>פירוט לפי ימים</h4>
+                  <div className="summary-days-list">
+                    {sprintDays.map((day) => (
+                      <div className={`summary-day ${day.tasks.length > 0 ? "has-tasks" : "is-empty"}`} key={day.date}>
+                        <div className="summary-day-date">
+                          <strong>{formatDate(day.date)}</strong>
+                          <span>{getWeekday(day.date)} · {day.tasks.length > 0 ? `${day.tasks.length} משימות` : "אין משימות"}</span>
+                        </div>
+
+                        {day.tasks.length === 0 ? (
+                          <p>לא נרשמו משימות ביום הזה.</p>
+                        ) : (
+                          <div className="summary-day-tasks">
+                            {day.tasks.map((task) => {
+                              const area = getWorkArea(task.workAreaId);
+                              return (
+                                <button className="summary-task-line" key={task.id} onClick={() => editTask(task)}>
+                                  <span className="dot" style={{ backgroundColor: area?.color || "#2563eb" }} />
+                                  <strong>{task.title}</strong>
+                                  <small>{area?.name || "ללא תחום"} · {task.status}{task.expectedEndDate ? ` · צפי: ${formatDate(task.expectedEndDate)}` : ""}</small>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </article>
+
+              <aside className="copy-text-card">
+                <div className="card-title">
+                  <h3>טקסט שיועתק</h3>
+                  <button className="ghost small" onClick={copySummary}>העתק</button>
+                </div>
+                <pre className="summary-plain-text">{sprintText}</pre>
+              </aside>
             </div>
           </section>
         )}
