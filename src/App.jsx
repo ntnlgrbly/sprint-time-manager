@@ -113,7 +113,7 @@ export default function App() {
 
   const initialForm = {
     date: getToday(),
-    expectedEndDate: "",
+    timeSpent: "",
     workAreaId: "wcm-desktop",
     title: "",
     description: "",
@@ -209,8 +209,8 @@ export default function App() {
 
         const lines = day.tasks.map((task) => {
           const area = getWorkArea(task.workAreaId)?.name || "ללא תחום";
-          const expected = task.expectedEndDate ? `, צפי סיום: ${formatDate(task.expectedEndDate)}` : "";
-          return `  - ${task.title} (${area}, ${task.status}${expected})`;
+          const duration = task.timeSpent ? `, זמן שהושקע: ${task.timeSpent}` : "";
+          return `  - ${task.title} (${area}, ${task.status}${duration})`;
         });
         return `${formatDate(day.date)}\n${lines.join("\n")}`;
       })
@@ -262,7 +262,7 @@ export default function App() {
     setEditingTaskId(task.id);
     setForm({
       date: task.date,
-      expectedEndDate: task.expectedEndDate || "",
+      timeSpent: task.timeSpent || "",
       workAreaId: task.workAreaId,
       title: task.title,
       description: task.description,
@@ -281,7 +281,7 @@ export default function App() {
 
   function openNewTaskForm() {
     setEditingTaskId(null);
-    setForm({ ...initialForm, date: getToday(), expectedEndDate: "" });
+    setForm({ ...initialForm, date: getToday(), timeSpent: "" });
     setActiveTab("tasks");
   }
 
@@ -437,7 +437,7 @@ export default function App() {
                             <span className="task-dot" style={{ backgroundColor: area?.color || "#2563eb" }} />
                             <span className="dashboard-task-main">
                               <strong>{task.title}</strong>
-                              <small>{formatDate(task.date)} · {area?.name} · {task.category}{task.expectedEndDate ? ` · צפי: ${formatDate(task.expectedEndDate)}` : ""}</small>
+                              <small>{formatDate(task.date)} · {area?.name} · {task.category}{task.timeSpent ? ` · זמן: ${task.timeSpent}` : ""}</small>
                             </span>
                             <span className={`status status-${task.status.replaceAll(" ", "-")}`}>{task.status}</span>
                           </button>
@@ -503,7 +503,7 @@ export default function App() {
                       {todayTasks.map((task) => (
                         <button className="mini-task" key={task.id} onClick={() => editTask(task)}>
                           <strong>{task.title}</strong>
-                          <span>{getWorkArea(task.workAreaId)?.name} · {task.status}{task.expectedEndDate ? ` · צפי: ${formatDate(task.expectedEndDate)}` : ""}</span>
+                          <span>{getWorkArea(task.workAreaId)?.name} · {task.status}{task.timeSpent ? ` · זמן: ${task.timeSpent}` : ""}</span>
                         </button>
                       ))}
                     </div>
@@ -521,7 +521,7 @@ export default function App() {
               <form onSubmit={submitTask} className="form">
                 <div className="two-cols">
                   <label>תאריך<input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></label>
-                  <label>צפי סיום<input type="date" value={form.expectedEndDate} onChange={(e) => setForm({ ...form, expectedEndDate: e.target.value })} /></label>
+                  <label>כמה זמן לקח<input value={form.timeSpent} onChange={(e) => setForm({ ...form, timeSpent: e.target.value })} placeholder="לדוגמה: 45 דקות / 3 שעות / חצי יום" /></label>
                 </div>
                 <label>על מה עבדתי היום?<select value={form.workAreaId} onChange={(e) => setForm({ ...form, workAreaId: e.target.value })}>{workAreas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select></label>
                 <label>כותרת<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="לדוגמה: בדיקות Status Code ל-Ynet QA" /></label>
@@ -563,7 +563,7 @@ export default function App() {
                         <div className="task-top">
                           <div>
                             <h4>{task.title}</h4>
-                            <div className="meta"><span>{formatDate(task.date)}</span><span>•</span><span>{area?.name}</span><span>•</span><span>{task.category}</span>{task.expectedEndDate && <><span>•</span><span>צפי סיום: {formatDate(task.expectedEndDate)}</span></>}</div>
+                            <div className="meta"><span>{formatDate(task.date)}</span><span>•</span><span>{area?.name}</span><span>•</span><span>{task.category}</span>{task.timeSpent && <><span>•</span><span>זמן שהושקע: {task.timeSpent}</span></>}</div>
                           </div>
                           <span className={`status status-${task.status.replaceAll(" ", "-")}`}>{task.status}</span>
                         </div>
@@ -641,7 +641,7 @@ export default function App() {
                                 <button className="summary-task-line" key={task.id} onClick={() => editTask(task)}>
                                   <span className="dot" style={{ backgroundColor: area?.color || "#2563eb" }} />
                                   <strong>{task.title}</strong>
-                                  <small>{area?.name || "ללא תחום"} · {task.status}{task.expectedEndDate ? ` · צפי: ${formatDate(task.expectedEndDate)}` : ""}</small>
+                                  <small>{area?.name || "ללא תחום"} · {task.status}{task.timeSpent ? ` · זמן: ${task.timeSpent}` : ""}</small>
                                 </button>
                               );
                             })}
